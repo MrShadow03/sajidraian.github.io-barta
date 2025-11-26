@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BARTA — Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="profile">
+          <img src="avater/luffy.jpg" alt="profile" class="avatar" />
+          <div class="profile-meta">
+            <div class="app-name">BARTA</div>
+            <div class="status">online</div>
+          </div>
+        </div>
+
+        <div class="searchbox">
+          <input class="search-input" placeholder="Search or start new chat" />
+        </div>
+      </div>
+
+      <nav class="user-list">
+        <div class="user"><img src="avater/miku01.jpg" alt="Jinat" /><span>Jinat</span></div>
+        <div class="user"><img src="avater/luffy02.jpg" alt="Rifa" /><span>Rifa</span></div>
+        <div class="user"><img src="avater/teto.jpg" alt="Aksha" /><span>Aksha</span></div>
+        <div class="user"><img src="avater/ckk.JPG" alt="Raian" /><span>Raian</span></div>
+      </nav>
+
+      <footer class="sidebar-footer">
+        <button class="btn btn-ghost">New Chat</button>
+      </footer>
+    </aside>
+
+    <main class="chat-area">
+      <header class="chat-topbar">
+        <div class="chat-person">
+          <img id="top-avatar" src="avater/miku01.jpg" alt="avatar" class="avatar-sm" />
+          <div class="chat-person-meta">
+            <div id="chat-name" class="chat-name">Jinat</div>
+            <div class="chat-sub">last seen recently</div>
+          </div>
+        </div>
+
+        <div class="chat-actions">
+          <button class="icon-btn" title="Call">📞</button>
+          <button class="icon-btn" title="Video">🎥</button>
+          <button class="icon-btn" title="More">⋯</button>
+        </div>
+      </header>
+
+      <section id="messages" class="messages">
+        <!-- messages injected by JS -->
+      </section>
+
+      <footer class="composer">
+        <input id="msgInput" class="composer-input" type="text" placeholder="Write a message…" />
+        <button id="sendBtn" class="btn btn-send">➤</button>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // DOM refs
+    const users = document.querySelectorAll('.user');
+    const chatName = document.getElementById('chat-name');
+    const topAvatar = document.getElementById('top-avatar');
+    const messages = document.getElementById('messages');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // Fake chat history
+    const chatDB = {
+      "Jinat": [
+        { side: "left", text: "Hi Jinat — welcome!" },
+        { side: "right", text: "Thanks — nice to be here." },
+      ],
+      "Rifa": [
+        { side: "left", text: "Rifa: Let's grab food." },
+      ],
+      "Aksha": [
+        { side: "right", text: "Aksha: Hello!" }
+      ],
+      "Raian": [
+        { side: "left", text: "Raian: Online now?" }
+      ]
+    };
+
+    // Utility to render a message
+    function appendMessage(side, text) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + side;
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Load chat
+    function loadChat(user, avatar) {
+      chatName.textContent = user;
+      topAvatar.src = avatar;
+      messages.innerHTML = '';
+      const list = chatDB[user] || [];
+      list.forEach(m => appendMessage(m.side, m.text));
+    }
+
+    // click on users in sidebar
+    document.querySelectorAll('.user-list .user').forEach(u => {
+      u.addEventListener('click', () => {
+        const name = u.querySelector('span').textContent;
+        const avatar = u.querySelector('img').src;
+        loadChat(name, avatar);
+      });
+    });
+
+    // Initialize with first user
+    loadChat('Jinat', 'avater/miku01.jpg');
+
+    // Send message
+    function sendMessage() {
+      const text = msgInput.value.trim();
+      if (!text) return;
+      appendMessage('right', text);
+      const current = chatName.textContent;
+      if (!chatDB[current]) chatDB[current] = [];
+      chatDB[current].push({ side: 'right', text });
+      msgInput.value = '';
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+  </script>
+</body>
+</html>
+
