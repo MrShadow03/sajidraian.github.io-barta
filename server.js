@@ -49,6 +49,7 @@ const USERS_FILE = path.join(DB_DIR, 'users.json');
 const MESSAGES_FILE = path.join(DB_DIR, 'messages.json');
 const SESSIONS_FILE = path.join(DB_DIR, 'sessions.json');
 const TYPING_FILE = path.join(DB_DIR, 'typing.json');
+const CALLS_FILE = path.join(DB_DIR, 'calls.json');
 
 // Initialize database
 async function initDB() {
@@ -78,6 +79,12 @@ async function initDB() {
     } catch {
       await fs.writeFile(TYPING_FILE, JSON.stringify([], null, 2));
     }
+    
+    try {
+      await fs.access(CALLS_FILE);
+    } catch {
+      await fs.writeFile(CALLS_FILE, JSON.stringify([], null, 2));
+    }
   } catch (err) {
     console.error('Database initialization error:', err);
   }
@@ -85,21 +92,54 @@ async function initDB() {
 
 // Helper functions
 async function readJSON(filePath) {
-  const data = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(data);
+  try {
+    const data = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error(`Error reading JSON from ${filePath}:`, err.message);
+    // Return empty array for corrupted files
+    await fs.writeFile(filePath, JSON.stringify([], null, 2));
+    return [];
+  }
 }
 
 async function writeJSON(filePath, data) {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  try {
+    // Validate data before writing
+    const jsonString = JSON.stringify(data, null, 2);
+    await fs.writeFile(filePath, jsonString);
+  } catch (err) {
+    console.error(`Error writing JSON to ${filePath}:`, err.message);
+    throw err;
+  }
 }
 
-// Clean up inactive sessions (older than 5 minutes)
+// Clean up inactive sessions (older than 10 minutes)
 async function cleanupSessions() {
   const sessions = await readJSON(SESSIONS_FILE);
   const now = Date.now();
-  const activeSessions = sessions.filter(s => (now - s.lastActive) < 5 * 60 * 1000);
+  const activeSessions = sessions.filter(s => (now - s.lastActive) < 10 * 60 * 1000);
   await writeJSON(SESSIONS_FILE, activeSessions);
   return activeSessions;
+}
+
+// Clean up old calls (older than 5 minutes)
+async function cleanupCalls() {
+  try {
+    const calls = await readJSON(CALLS_FILE);
+    const now = Date.now();
+    const activeCalls = calls.filter(c => (now - c.timestamp) < 5 * 60 * 1000);
+    
+    if (activeCalls.length !== calls.length) {
+      console.log(`Cleaned up ${calls.length - activeCalls.length} old calls`);
+      await writeJSON(CALLS_FILE, activeCalls);
+    }
+    
+    return activeCalls;
+  } catch (err) {
+    console.error('Error cleaning up calls:', err);
+    return [];
+  }
 }
 
 // API Routes
@@ -354,9 +394,205 @@ app.get('/api/typing/:userId/:receiverId', async (req, res) => {
   }
 });
 
+// WebRTC Call Signaling Endpoints
+
+// Initiate a call (send offer)
+app.post('/api/call/offer', async (req, res) => {
+  try {
+    const { callerId, receiverId, offer, callType } = req.body;
+    
+    console.log(`[CALL] New ${callType} call from ${callerId} to ${receiverId}`);
+    
+    if (!callerId || !receiverId || !offer || !callType) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    let calls = await readJSON(CALLS_FILE);
+    
+    // Remove any existing calls between these users
+    calls = calls.filter(c => 
+      !((c.callerId === callerId && c.receiverId === receiverId) ||
+        (c.callerId === receiverId && c.receiverId === callerId))
+    );
+    
+    const newCall = {
+      id: Date.now().toString(),
+      callerId,
+      receiverId,
+      callType, // 'audio' or 'video'
+      offer,
+      answer: null,
+      status: 'ringing', // ringing, active, ended
+      iceCandidates: [],
+      timestamp: Date.now()
+    };
+    
+    calls.push(newCall);
+    await writeJSON(CALLS_FILE, calls);
+    
+    res.json({ success: true, callId: newCall.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Answer a call
+app.post('/api/call/answer', async (req, res) => {
+  try {
+    const { callId, answer } = req.body;
+    
+    console.log(`[CALL] Call answered: ${callId}`);
+    
+    if (!callId || !answer) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const calls = await readJSON(CALLS_FILE);
+    const call = calls.find(c => c.id === callId);
+    
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+    
+    call.answer = answer;
+    call.status = 'active';
+    
+    await writeJSON(CALLS_FILE, calls);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add ICE candidate
+app.post('/api/call/ice-candidate', async (req, res) => {
+  try {
+    const { callId, candidate, userId } = req.body;
+    
+    if (!callId || !candidate || !userId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const calls = await readJSON(CALLS_FILE);
+    const call = calls.find(c => c.id === callId);
+    
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+    
+    call.iceCandidates.push({
+      userId,
+      candidate,
+      timestamp: Date.now()
+    });
+    
+    await writeJSON(CALLS_FILE, calls);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check for incoming calls
+app.get('/api/call/check/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    let calls = await readJSON(CALLS_FILE);
+    
+    // Clean up old calls (older than 5 minutes)
+    const now = Date.now();
+    const originalLength = calls.length;
+    calls = calls.filter(c => (now - c.timestamp) < 5 * 60 * 1000);
+    
+    if (originalLength !== calls.length) {
+      await writeJSON(CALLS_FILE, calls);
+    }
+    
+    // Find active calls for this user
+    const incomingCall = calls.find(c => 
+      c.receiverId === userId && c.status === 'ringing'
+    );
+    
+    const activeCall = calls.find(c => 
+      (c.callerId === userId || c.receiverId === userId) && c.status === 'active'
+    );
+    
+    // Get new ICE candidates for active calls
+    let newIceCandidates = [];
+    if (activeCall) {
+      const lastCheck = parseInt(req.query.lastCheck || '0');
+      newIceCandidates = activeCall.iceCandidates.filter(ice => 
+        ice.userId !== userId && ice.timestamp > lastCheck
+      );
+    }
+    
+    res.json({ 
+      incomingCall: incomingCall || null,
+      activeCall: activeCall || null,
+      iceCandidates: newIceCandidates
+    });
+  } catch (err) {
+    console.error('[CALL] Error checking calls:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// End a call
+app.post('/api/call/end', async (req, res) => {
+  try {
+    const { callId } = req.body;
+    
+    console.log(`[CALL] Call ended: ${callId}`);
+    
+    if (!callId) {
+      return res.status(400).json({ error: 'Missing callId' });
+    }
+    
+    let calls = await readJSON(CALLS_FILE);
+    calls = calls.filter(c => c.id !== callId);
+    await writeJSON(CALLS_FILE, calls);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reject a call
+app.post('/api/call/reject', async (req, res) => {
+  try {
+    const { callId } = req.body;
+    
+    if (!callId) {
+      return res.status(400).json({ error: 'Missing callId' });
+    }
+    
+    let calls = await readJSON(CALLS_FILE);
+    calls = calls.filter(c => c.id !== callId);
+    await writeJSON(CALLS_FILE, calls);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start server
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 BARTA server running on port ${PORT}`);
   });
+  
+  // Periodic cleanup (every 2 minutes)
+  setInterval(async () => {
+    try {
+      await cleanupCalls();
+      await cleanupSessions();
+    } catch (err) {
+      console.error('Cleanup error:', err);
+    }
+  }, 2 * 60 * 1000);
 });
