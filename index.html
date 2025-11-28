@@ -4,16 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BARTA</title>
+  <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="index-page">
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <span class="theme-icon" id="themeIcon">🌙</span>
+  </button>
+  
   <header class="hero">
     <div class="hero-inner">
       <div class="brand">
-        <!-- kept minimal icon (you can replace with any SVG) -->
-        <svg class="brand-icon" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M12 2C7.03 2 3 6.03 3 11c0 6.08 6.42 10.53 8.16 11.58a1 1 0 0 0 .96 0C14.58 21.53 21 17.08 21 11c0-4.97-4.03-9-9-9z"></path>
-        </svg>
+        <i class="las la-comments brand-icon"></i>
         <span class="brand-name">BARTA</span>
       </div>
 
@@ -25,5 +27,58 @@
       </div>
     </div>
   </header>
+
+  <script>
+    // Sound Effects System
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      if (type === 'click') {
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'toggle') {
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(900, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.15);
+      }
+    }
+    
+    // Theme toggle functionality
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const html = document.documentElement;
+    
+    // Load saved theme or default to dark
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    html.setAttribute('data-theme', savedTheme);
+    themeIcon.innerHTML = savedTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
+    
+    themeToggle.addEventListener('click', () => {
+      playSound('toggle');
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      themeIcon.innerHTML = newTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
+    });
+    
+    // Add sound to Start Messaging button
+    document.querySelector('.btn-primary').addEventListener('click', () => {
+      playSound('click');
+    });
+  </script>
 </body>
 </html>
