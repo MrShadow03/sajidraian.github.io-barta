@@ -492,15 +492,20 @@
     // Load user list
     async function loadUsers() {
       try {
+        console.log('[LOAD USERS] Fetching users for:', currentUserId);
+        console.log('[LOAD USERS] API URL:', `${API_URL}/users?currentUserId=${currentUserId}`);
+        
         const response = await fetch(`${API_URL}/users?currentUserId=${currentUserId}`, {
           signal: AbortSignal.timeout(5000) // 5 second timeout
         });
         
         if (!response.ok) {
+          console.error('[LOAD USERS] HTTP error:', response.status, response.statusText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const users = await response.json();
+        console.log('[LOAD USERS] Received users:', users.length, users);
         
         const userList = document.getElementById('userList');
         const searchQuery = document.getElementById('searchInput').value.toLowerCase();
@@ -508,6 +513,8 @@
         const filteredUsers = users.filter(u => 
           u.username.toLowerCase().includes(searchQuery)
         );
+        
+        console.log('[LOAD USERS] Filtered users:', filteredUsers.length);
         
         // Only update if there's a change
         const currentUserIds = Array.from(userList.querySelectorAll('.user')).map(u => u.dataset.userId);

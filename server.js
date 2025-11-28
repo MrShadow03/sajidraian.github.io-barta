@@ -249,6 +249,8 @@ app.get('/api/users', async (req, res) => {
     const sessions = await cleanupSessions();
     const currentUserId = req.query.currentUserId;
     
+    console.log(`[USERS] Request from user: ${currentUserId}, Total users: ${users.length}, Active sessions: ${sessions.length}`);
+    
     const usersWithStatus = users
       .filter(u => u.id !== currentUserId)
       .map(u => ({
@@ -258,7 +260,7 @@ app.get('/api/users', async (req, res) => {
         online: sessions.some(s => s.userId === u.id)
       }));
     
-    res.json(usersWithStatus);
+    console.log(`[USERS] Returning ${usersWithStatus.length} users`);    res.json(usersWithStatus);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
