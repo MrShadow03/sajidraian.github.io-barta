@@ -1,3 +1,30 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Database files (will be persistent on Railway)
+database/
+
+# Uploaded files (will be persistent on Railway)
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

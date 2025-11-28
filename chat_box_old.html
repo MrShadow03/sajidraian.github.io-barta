@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BARTA — Chat</title>
+  <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app">
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <span class="theme-icon" id="themeIcon">🌙</span>
+  </button>
+  
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="profile">
+          <img src="avater/luffy.jpg" alt="profile" class="avatar" />
+          <div class="profile-meta">
+            <div class="app-name">BARTA</div>
+            <div class="status">online</div>
+          </div>
+        </div>
+
+        <div class="searchbox">
+          <input class="search-input" placeholder="Search or start new chat" aria-label="Search conversations" />
+        </div>
+      </div>
+
+      <nav class="user-list" aria-label="Conversations">
+        <div class="user" role="button" tabindex="0" aria-label="Chat with Jinat"><img src="avater/miku01.jpg" alt="Jinat profile picture" /><span>Jinat</span></div>
+        <div class="user" role="button" tabindex="0" aria-label="Chat with Rifa"><img src="avater/luffy02.jpg" alt="Rifa profile picture" /><span>Rifa</span></div>
+        <div class="user" role="button" tabindex="0" aria-label="Chat with Aksha"><img src="avater/teto.jpg" alt="Aksha profile picture" /><span>Aksha</span></div>
+        <div class="user" role="button" tabindex="0" aria-label="Chat with Raian"><img src="avater/ckk.JPG" alt="Raian profile picture" /><span>Raian</span></div>
+      </nav>
+
+      <footer class="sidebar-footer">
+        <button class="btn btn-ghost">New Chat</button>
+      </footer>
+    </aside>
+
+    <main class="chat-area">
+      <header class="chat-topbar">
+        <div class="chat-person">
+          <img id="top-avatar" src="avater/miku01.jpg" alt="avatar" class="avatar-sm" />
+          <div class="chat-person-meta">
+            <div id="chat-name" class="chat-name">Jinat</div>
+            <div class="chat-sub">last seen recently</div>
+          </div>
+        </div>
+
+        <div class="chat-actions">
+          <button class="icon-btn" title="Call" aria-label="Start voice call"><i class="las la-phone"></i></button>
+          <button class="icon-btn" title="Video" aria-label="Start video call"><i class="las la-video"></i></button>
+          <button class="icon-btn" title="More" aria-label="More options"><i class="las la-ellipsis-v"></i></button>
+        </div>
+      </header>
+
+      <section id="messages" class="messages" role="log" aria-live="polite" aria-label="Chat messages">
+        <!-- messages injected by JS -->
+      </section>
+
+      <footer class="composer">
+        <input id="msgInput" class="composer-input" type="text" placeholder="Write a message…" aria-label="Message input" />
+        <button id="sendBtn" class="btn btn-send" aria-label="Send message"><i class="las la-paper-plane"></i></button>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // Sound Effects System
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      if (type === 'send') {
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.15);
+      } else if (type === 'receive') {
+        oscillator.frequency.setValueAtTime(500, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(700, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.15);
+      } else if (type === 'click') {
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'toggle') {
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(900, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.15);
+      }
+    }
+    
+    // Theme toggle functionality
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const html = document.documentElement;
+    
+    // Load saved theme or default to dark
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    html.setAttribute('data-theme', savedTheme);
+    themeIcon.innerHTML = savedTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
+    
+    themeToggle.addEventListener('click', () => {
+      playSound('toggle');
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      themeIcon.innerHTML = newTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
+    });
+    
+    // DOM refs
+    const users = document.querySelectorAll('.user');
+    const chatName = document.getElementById('chat-name');
+    const topAvatar = document.getElementById('top-avatar');
+    const messages = document.getElementById('messages');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // Fake chat history
+    const chatDB = {
+      "Jinat": [
+        { side: "left", text: "Hi Jinat — welcome!", time: "10:30 AM" },
+        { side: "right", text: "Thanks — nice to be here.", time: "10:32 AM" },
+      ],
+      "Rifa": [
+        { side: "left", text: "Rifa: Let's grab food.", time: "Yesterday" },
+      ],
+      "Aksha": [
+        { side: "right", text: "Aksha: Hello!", time: "9:45 AM" }
+      ],
+      "Raian": [
+        { side: "left", text: "Raian: Online now?", time: "11:20 AM" }
+      ]
+    };
+
+    // Utility to render a message
+    function appendMessage(side, text, time) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + side;
+      
+      const textDiv = document.createElement('div');
+      textDiv.className = 'msg-text';
+      textDiv.textContent = text;
+      
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'msg-time';
+      timeDiv.textContent = time || getCurrentTime();
+      
+      div.appendChild(textDiv);
+      div.appendChild(timeDiv);
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    // Get current time in 12-hour format
+    function getCurrentTime() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = now.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+      return hours + ':' + minutesStr + ' ' + ampm;
+    }
+
+    // Load chat
+    function loadChat(user, avatar) {
+      chatName.textContent = user;
+      topAvatar.src = avatar;
+      messages.innerHTML = '';
+      const list = chatDB[user] || [];
+      list.forEach(m => appendMessage(m.side, m.text, m.time));
+    }
+
+    // click on users in sidebar
+    document.querySelectorAll('.user-list .user').forEach(u => {
+      const handler = () => {
+        playSound('click');
+        const name = u.querySelector('span').textContent;
+        const avatar = u.querySelector('img').src;
+        loadChat(name, avatar);
+      };
+      
+      u.addEventListener('click', handler);
+      
+      // Add keyboard support
+      u.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handler();
+        }
+      });
+    });
+
+    // Initialize with first user
+    loadChat('Jinat', 'avater/miku01.jpg');
+
+    // Send message
+    function sendMessage() {
+      const text = msgInput.value.trim();
+      if (!text) {
+        msgInput.style.borderColor = '#ff4444';
+        setTimeout(() => { msgInput.style.borderColor = ''; }, 500);
+        return;
+      }
+      
+      playSound('send');
+      
+      // Disable input while sending
+      msgInput.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.style.opacity = '0.6';
+      
+      // Simulate send delay
+      setTimeout(() => {
+        const currentTime = getCurrentTime();
+        appendMessage('right', text, currentTime);
+        const current = chatName.textContent;
+        if (!chatDB[current]) chatDB[current] = [];
+        chatDB[current].push({ side: 'right', text, time: currentTime });
+        msgInput.value = '';
+        
+        // Re-enable input
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.style.opacity = '1';
+        msgInput.focus();
+      }, 200);
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+  </script>
+</body>
+</html>
+

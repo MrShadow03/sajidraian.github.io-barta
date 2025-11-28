@@ -23,7 +23,8 @@
       <p class="hero-sub">Fast — Minimal — Secure. Chat with your people in style.</p>
 
       <div class="hero-cta">
-        <a class="btn btn-primary" href="login.html">Start Messaging</a>
+        <a class="btn btn-primary" href="register.html">Get Started</a>
+        <a class="btn btn-ghost" href="login.html">Login</a>
       </div>
     </div>
   </header>
@@ -75,9 +76,9 @@
       themeIcon.innerHTML = newTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
     });
     
-    // Add sound to Start Messaging button
-    document.querySelector('.btn-primary').addEventListener('click', () => {
-      playSound('click');
+    // Add sound to buttons
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', () => playSound('click'));
     });
   </script>
 </body>

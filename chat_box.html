@@ -6,6 +6,69 @@
   <title>BARTA — Chat</title>
   <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .online-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4caf50;
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      border: 2px solid var(--sidebar);
+    }
+    .offline-indicator {
+      background: var(--muted);
+    }
+    .user {
+      position: relative;
+    }
+    .logout-btn {
+      margin-top: auto;
+      width: 100%;
+    }
+    .typing-indicator {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      margin: 8px 0;
+      background: var(--bubble-left);
+      border-radius: 12px;
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+      max-width: 65%;
+    }
+    .typing-indicator.active {
+      display: flex;
+    }
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+    .typing-dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    @keyframes typingBounce {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.7;
+      }
+      30% {
+        transform: translateY(-10px);
+        opacity: 1;
+      }
+    }
+  </style>
 </head>
 <body class="app">
   <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
@@ -16,59 +79,55 @@
     <aside class="sidebar">
       <div class="sidebar-top">
         <div class="profile">
-          <img src="avater/luffy.jpg" alt="profile" class="avatar" />
+          <img id="currentUserPhoto" src="avater/luffy.jpg" alt="profile" class="avatar" />
           <div class="profile-meta">
             <div class="app-name">BARTA</div>
-            <div class="status">online</div>
+            <div class="status" id="currentUsername">online</div>
           </div>
         </div>
 
         <div class="searchbox">
-          <input class="search-input" placeholder="Search or start new chat" aria-label="Search conversations" />
+          <input class="search-input" placeholder="Search users" id="searchInput" aria-label="Search conversations" />
         </div>
       </div>
 
-      <nav class="user-list" aria-label="Conversations">
-        <div class="user" role="button" tabindex="0" aria-label="Chat with Jinat"><img src="avater/miku01.jpg" alt="Jinat profile picture" /><span>Jinat</span></div>
-        <div class="user" role="button" tabindex="0" aria-label="Chat with Rifa"><img src="avater/luffy02.jpg" alt="Rifa profile picture" /><span>Rifa</span></div>
-        <div class="user" role="button" tabindex="0" aria-label="Chat with Aksha"><img src="avater/teto.jpg" alt="Aksha profile picture" /><span>Aksha</span></div>
-        <div class="user" role="button" tabindex="0" aria-label="Chat with Raian"><img src="avater/ckk.JPG" alt="Raian profile picture" /><span>Raian</span></div>
+      <nav class="user-list" aria-label="Conversations" id="userList">
+        <!-- Users will be loaded here -->
       </nav>
 
       <footer class="sidebar-footer">
-        <button class="btn btn-ghost">New Chat</button>
+        <button class="btn btn-ghost logout-btn" id="logoutBtn">Logout</button>
       </footer>
     </aside>
 
-    <main class="chat-area">
-      <header class="chat-topbar">
-        <div class="chat-person">
-          <img id="top-avatar" src="avater/miku01.jpg" alt="avatar" class="avatar-sm" />
-          <div class="chat-person-meta">
-            <div id="chat-name" class="chat-name">Jinat</div>
-            <div class="chat-sub">last seen recently</div>
-          </div>
+    <main class="chat-area" id="chatArea">
+      <div class="empty-chat">
+        <div class="empty-inner">
+          <h2>Welcome to BARTA</h2>
+          <p>Select a user to start chatting</p>
         </div>
-
-        <div class="chat-actions">
-          <button class="icon-btn" title="Call" aria-label="Start voice call"><i class="las la-phone"></i></button>
-          <button class="icon-btn" title="Video" aria-label="Start video call"><i class="las la-video"></i></button>
-          <button class="icon-btn" title="More" aria-label="More options"><i class="las la-ellipsis-v"></i></button>
-        </div>
-      </header>
-
-      <section id="messages" class="messages" role="log" aria-live="polite" aria-label="Chat messages">
-        <!-- messages injected by JS -->
-      </section>
-
-      <footer class="composer">
-        <input id="msgInput" class="composer-input" type="text" placeholder="Write a message…" aria-label="Message input" />
-        <button id="sendBtn" class="btn btn-send" aria-label="Send message"><i class="las la-paper-plane"></i></button>
-      </footer>
+      </div>
     </main>
   </div>
 
   <script>
+    const API_URL = 'http://localhost:3000/api';
+    let currentUserId = localStorage.getItem('userId');
+    let currentUsername = localStorage.getItem('username');
+    let sessionId = localStorage.getItem('sessionId');
+    let selectedUserId = null;
+    let selectedUsername = null;
+    let lastMessageId = null;
+    let userListInterval = null;
+    let messagesInterval = null;
+    let typingTimeout = null;
+    let lastTypingState = false;
+    
+    // Check if logged in
+    if (!sessionId || !currentUserId) {
+      window.location.href = 'login.html';
+    }
+    
     // Sound Effects System
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
@@ -114,7 +173,6 @@
     const themeIcon = document.getElementById('themeIcon');
     const html = document.documentElement;
     
-    // Load saved theme or default to dark
     const savedTheme = localStorage.getItem('theme') || 'dark';
     html.setAttribute('data-theme', savedTheme);
     themeIcon.innerHTML = savedTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
@@ -123,41 +181,203 @@
       playSound('toggle');
       const currentTheme = html.getAttribute('data-theme');
       const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      
       html.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       themeIcon.innerHTML = newTheme === 'light' ? '<i class="las la-moon"></i>' : '<i class="las la-sun"></i>';
     });
     
-    // DOM refs
-    const users = document.querySelectorAll('.user');
-    const chatName = document.getElementById('chat-name');
-    const topAvatar = document.getElementById('top-avatar');
-    const messages = document.getElementById('messages');
-    const msgInput = document.getElementById('msgInput');
-    const sendBtn = document.getElementById('sendBtn');
-
-    // Fake chat history
-    const chatDB = {
-      "Jinat": [
-        { side: "left", text: "Hi Jinat — welcome!", time: "10:30 AM" },
-        { side: "right", text: "Thanks — nice to be here.", time: "10:32 AM" },
-      ],
-      "Rifa": [
-        { side: "left", text: "Rifa: Let's grab food.", time: "Yesterday" },
-      ],
-      "Aksha": [
-        { side: "right", text: "Aksha: Hello!", time: "9:45 AM" }
-      ],
-      "Raian": [
-        { side: "left", text: "Raian: Online now?", time: "11:20 AM" }
-      ]
-    };
-
-    // Utility to render a message
-    function appendMessage(side, text, time) {
+    // Set current user info
+    document.getElementById('currentUsername').textContent = currentUsername;
+    document.getElementById('currentUserPhoto').src = localStorage.getItem('userPhoto') || 'avater/luffy.jpg';
+    
+    // Heartbeat to keep session alive
+    async function sendHeartbeat() {
+      try {
+        await fetch(`${API_URL}/heartbeat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+      } catch (err) {
+        console.error('Heartbeat error:', err);
+      }
+    }
+    
+    setInterval(sendHeartbeat, 30000); // Every 30 seconds
+    
+    // Load user list
+    async function loadUsers() {
+      try {
+        const response = await fetch(`${API_URL}/users?currentUserId=${currentUserId}`);
+        const users = await response.json();
+        
+        const userList = document.getElementById('userList');
+        const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+        
+        const filteredUsers = users.filter(u => 
+          u.username.toLowerCase().includes(searchQuery)
+        );
+        
+        // Only update if there's a change
+        const currentUserIds = Array.from(userList.querySelectorAll('.user')).map(u => u.dataset.userId);
+        const newUserIds = filteredUsers.map(u => u.id);
+        
+        if (JSON.stringify(currentUserIds) !== JSON.stringify(newUserIds) || searchQuery) {
+          userList.innerHTML = '';
+          
+          filteredUsers.forEach(user => {
+            const userDiv = document.createElement('div');
+            userDiv.className = 'user';
+            userDiv.dataset.userId = user.id;
+            userDiv.setAttribute('role', 'button');
+            userDiv.setAttribute('tabindex', '0');
+            userDiv.setAttribute('aria-label', `Chat with ${user.username}`);
+            
+            if (selectedUserId === user.id) {
+              userDiv.classList.add('active');
+            }
+            
+            userDiv.innerHTML = `
+              <img src="${user.photo}" alt="${user.username} profile picture" />
+              <span>${user.username}</span>
+              <span class="${user.online ? 'online-indicator' : 'online-indicator offline-indicator'}"></span>
+            `;
+            
+            userDiv.addEventListener('click', () => selectUser(user));
+            userList.appendChild(userDiv);
+          });
+        } else {
+          // Update online status indicators
+          filteredUsers.forEach(user => {
+            const userDiv = userList.querySelector(`[data-user-id="${user.id}"]`);
+            if (userDiv) {
+              const indicator = userDiv.querySelector('.online-indicator');
+              if (indicator) {
+                indicator.className = user.online ? 'online-indicator' : 'online-indicator offline-indicator';
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+    }
+    
+    // Select user to chat
+    function selectUser(user) {
+      playSound('click');
+      selectedUserId = user.id;
+      selectedUsername = user.username;
+      lastMessageId = null;
+      
+      // Update UI
+      document.querySelectorAll('.user').forEach(u => u.classList.remove('active'));
+      document.querySelector(`[data-user-id="${user.id}"]`)?.classList.add('active');
+      
+      // Show chat interface
+      const chatArea = document.getElementById('chatArea');
+      chatArea.innerHTML = `
+        <header class="chat-topbar">
+          <div class="chat-person">
+            <img src="${user.photo}" alt="avatar" class="avatar-sm" />
+            <div class="chat-person-meta">
+              <div class="chat-name">${user.username}</div>
+              <div class="chat-sub">${user.online ? 'online' : 'offline'}</div>
+            </div>
+          </div>
+          <div class="chat-actions">
+            <button class="icon-btn" title="Call" aria-label="Start voice call"><i class="las la-phone"></i></button>
+            <button class="icon-btn" title="Video" aria-label="Start video call"><i class="las la-video"></i></button>
+            <button class="icon-btn" title="More" aria-label="More options"><i class="las la-ellipsis-v"></i></button>
+          </div>
+        </header>
+        
+        <section id="messages" class="messages" role="log" aria-live="polite" aria-label="Chat messages">
+          <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </section>
+        
+        <footer class="composer">
+          <input id="msgInput" class="composer-input" type="text" placeholder="Write a message…" aria-label="Message input" />
+          <button id="sendBtn" class="btn btn-send" aria-label="Send message"><i class="las la-paper-plane"></i></button>
+        </footer>
+      `;
+      
+      // Setup message handlers
+      setupMessageHandlers();
+      
+      // Load messages
+      loadMessages();
+      
+      // Start polling for new messages
+      if (messagesInterval) clearInterval(messagesInterval);
+      messagesInterval = setInterval(loadMessages, 2000);
+    }
+    
+    // Load messages
+    async function loadMessages() {
+      if (!selectedUserId) return;
+      
+      try {
+        // Check if other user is typing
+        checkTypingStatus();
+        
+        const url = lastMessageId 
+          ? `${API_URL}/messages/${currentUserId}/${selectedUserId}?lastMessageId=${lastMessageId}`
+          : `${API_URL}/messages/${currentUserId}/${selectedUserId}`;
+          
+        const response = await fetch(url);
+        const messages = await response.json();
+        
+        if (messages.length > 0) {
+          const messagesContainer = document.getElementById('messages');
+          
+          messages.forEach(msg => {
+            appendMessage(
+              msg.senderId === currentUserId ? 'right' : 'left',
+              msg.text,
+              formatTime(msg.timestamp),
+              msg.id
+            );
+            
+            lastMessageId = msg.id;
+            
+            // Play sound for received messages
+            if (msg.senderId !== currentUserId) {
+              playSound('receive');
+            }
+          });
+          
+          // Mark messages as read
+          if (messages.some(m => m.senderId === selectedUserId)) {
+            await fetch(`${API_URL}/messages/read`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: currentUserId, senderId: selectedUserId })
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error loading messages:', err);
+      }
+    }
+    
+    // Append message to chat
+    function appendMessage(side, text, time, msgId) {
+      const messagesContainer = document.getElementById('messages');
+      if (!messagesContainer) return;
+      
+      // Check if message already exists
+      if (msgId && messagesContainer.querySelector(`[data-msg-id="${msgId}"]`)) {
+        return;
+      }
+      
       const div = document.createElement('div');
       div.className = 'msg ' + side;
+      div.dataset.msgId = msgId;
       
       const textDiv = document.createElement('div');
       textDiv.className = 'msg-text';
@@ -165,94 +385,184 @@
       
       const timeDiv = document.createElement('div');
       timeDiv.className = 'msg-time';
-      timeDiv.textContent = time || getCurrentTime();
+      timeDiv.textContent = time;
       
       div.appendChild(textDiv);
       div.appendChild(timeDiv);
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
+      
+      // Insert before typing indicator
+      const typingIndicator = document.getElementById('typingIndicator');
+      if (typingIndicator) {
+        messagesContainer.insertBefore(div, typingIndicator);
+      } else {
+        messagesContainer.appendChild(div);
+      }
+      
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
     
-    // Get current time in 12-hour format
-    function getCurrentTime() {
-      const now = new Date();
-      let hours = now.getHours();
-      const minutes = now.getMinutes();
+    // Format timestamp
+    function formatTime(timestamp) {
+      const date = new Date(timestamp);
+      let hours = date.getHours();
+      const minutes = date.getMinutes();
       const ampm = hours >= 12 ? 'PM' : 'AM';
       hours = hours % 12;
       hours = hours ? hours : 12;
       const minutesStr = minutes < 10 ? '0' + minutes : minutes;
       return hours + ':' + minutesStr + ' ' + ampm;
     }
-
-    // Load chat
-    function loadChat(user, avatar) {
-      chatName.textContent = user;
-      topAvatar.src = avatar;
-      messages.innerHTML = '';
-      const list = chatDB[user] || [];
-      list.forEach(m => appendMessage(m.side, m.text, m.time));
-    }
-
-    // click on users in sidebar
-    document.querySelectorAll('.user-list .user').forEach(u => {
-      const handler = () => {
-        playSound('click');
-        const name = u.querySelector('span').textContent;
-        const avatar = u.querySelector('img').src;
-        loadChat(name, avatar);
-      };
+    
+    // Check if other user is typing
+    async function checkTypingStatus() {
+      if (!selectedUserId) return;
       
-      u.addEventListener('click', handler);
-      
-      // Add keyboard support
-      u.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handler();
+      try {
+        const response = await fetch(`${API_URL}/typing/${selectedUserId}/${currentUserId}`);
+        const data = await response.json();
+        
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+          if (data.isTyping) {
+            typingIndicator.classList.add('active');
+          } else {
+            // Add delay before hiding
+            setTimeout(() => {
+              typingIndicator.classList.remove('active');
+            }, 800);
+          }
         }
-      });
-    });
-
-    // Initialize with first user
-    loadChat('Jinat', 'avater/miku01.jpg');
-
-    // Send message
-    function sendMessage() {
-      const text = msgInput.value.trim();
-      if (!text) {
-        msgInput.style.borderColor = '#ff4444';
-        setTimeout(() => { msgInput.style.borderColor = ''; }, 500);
-        return;
+      } catch (err) {
+        console.error('Error checking typing status:', err);
+      }
+    }
+    
+    // Send typing indicator
+    async function sendTypingIndicator(isTyping) {
+      if (!selectedUserId || lastTypingState === isTyping) return;
+      
+      lastTypingState = isTyping;
+      
+      try {
+        await fetch(`${API_URL}/typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUserId,
+            receiverId: selectedUserId,
+            isTyping
+          })
+        });
+      } catch (err) {
+        console.error('Error sending typing indicator:', err);
+      }
+    }
+    
+    // Setup message input handlers
+    function setupMessageHandlers() {
+      const msgInput = document.getElementById('msgInput');
+      const sendBtn = document.getElementById('sendBtn');
+      
+      async function sendMessage() {
+        const text = msgInput.value.trim();
+        if (!text) {
+          msgInput.style.borderColor = '#ff4444';
+          setTimeout(() => { msgInput.style.borderColor = ''; }, 500);
+          return;
+        }
+        
+        // Stop typing indicator
+        sendTypingIndicator(false);
+        if (typingTimeout) clearTimeout(typingTimeout);
+        
+        playSound('send');
+        
+        msgInput.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.style.opacity = '0.6';
+        
+        try {
+          const response = await fetch(`${API_URL}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              senderId: currentUserId,
+              receiverId: selectedUserId,
+              text
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            appendMessage('right', text, formatTime(data.message.timestamp), data.message.id);
+            lastMessageId = data.message.id;
+            msgInput.value = '';
+          }
+        } catch (err) {
+          console.error('Error sending message:', err);
+        } finally {
+          msgInput.disabled = false;
+          sendBtn.disabled = false;
+          sendBtn.style.opacity = '1';
+          msgInput.focus();
+        }
       }
       
-      playSound('send');
+      sendBtn.addEventListener('click', sendMessage);
+      msgInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') sendMessage();
+      });
       
-      // Disable input while sending
-      msgInput.disabled = true;
-      sendBtn.disabled = true;
-      sendBtn.style.opacity = '0.6';
-      
-      // Simulate send delay
-      setTimeout(() => {
-        const currentTime = getCurrentTime();
-        appendMessage('right', text, currentTime);
-        const current = chatName.textContent;
-        if (!chatDB[current]) chatDB[current] = [];
-        chatDB[current].push({ side: 'right', text, time: currentTime });
-        msgInput.value = '';
+      // Typing indicator
+      msgInput.addEventListener('input', () => {
+        sendTypingIndicator(true);
         
-        // Re-enable input
-        msgInput.disabled = false;
-        sendBtn.disabled = false;
-        sendBtn.style.opacity = '1';
-        msgInput.focus();
-      }, 200);
+        // Clear previous timeout
+        if (typingTimeout) clearTimeout(typingTimeout);
+        
+        // Stop typing after 2 seconds of inactivity
+        typingTimeout = setTimeout(() => {
+          sendTypingIndicator(false);
+        }, 2000);
+      });
+      
+      msgInput.addEventListener('blur', () => {
+        sendTypingIndicator(false);
+      });
     }
-
-    sendBtn.addEventListener('click', sendMessage);
-    msgInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+    
+    // Search users
+    document.getElementById('searchInput').addEventListener('input', loadUsers);
+    
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch(`${API_URL}/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+      } catch (err) {
+        console.error('Logout error:', err);
+      }
+      
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      localStorage.removeItem('userPhoto');
+      window.location.href = 'login.html';
+    });
+    
+    // Initialize
+    loadUsers();
+    userListInterval = setInterval(loadUsers, 3000); // Poll every 3 seconds
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (userListInterval) clearInterval(userListInterval);
+      if (messagesInterval) clearInterval(messagesInterval);
+    });
   </script>
 </body>
 </html>
-

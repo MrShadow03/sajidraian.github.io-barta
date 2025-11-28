@@ -19,31 +19,26 @@
     </div>
 
     <h3 class="login-title">Sign in to BARTA</h3>
-    <p class="login-desc">Enter your phone number to continue</p>
+    <p class="login-desc">Enter your credentials to continue</p>
 
     <label class="field">
-      <select class="input input-select" aria-label="Select country">
-        <option selected disabled>select a country</option>
-        <option>Bangladesh (+880)</option>
-        <option>India (+91)</option>
-        <option>USA (+1)</option>
-        <option>UK (+44)</option>
-      </select>
+      <input class="input" type="text" placeholder="Username" id="username" required aria-label="Username" autocomplete="username" />
     </label>
 
     <label class="field">
-      <input class="input" type="tel" placeholder="Enter your phone number" id="phone" aria-label="Phone number" autocomplete="tel" />
+      <input class="input" type="password" placeholder="Password" id="password" required aria-label="Password" autocomplete="current-password" />
     </label>
 
     <div class="actions">
-      <button id="loginBtn" class="btn btn-primary">Continue</button>
-      <a class="btn btn-ghost" href="chat.html">Or browse chats</a>
+      <button id="loginBtn" class="btn btn-primary">Login</button>
     </div>
 
-    <p class="small">or scan QR from your mobile app to login</p>
+    <p class="small">Don't have an account? <a href="register.html" style="color: var(--accent);">Register here</a></p>
   </main>
 
   <script>
+    const API_URL = 'http://localhost:3000/api';
+    
     // Sound Effects System
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
@@ -106,63 +101,92 @@
     
     // Login functionality
     const loginBtn = document.getElementById('loginBtn');
-    const phoneInput = document.getElementById('phone');
-    const selectInput = document.querySelector('.input-select');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
 
-    loginBtn.addEventListener('click', () => {
-      const phone = phoneInput.value.trim();
-      const country = selectInput.value;
+    loginBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
       
       // Clear previous error states
-      phoneInput.style.borderColor = '';
-      selectInput.style.borderColor = '';
+      usernameInput.style.borderColor = '';
+      passwordInput.style.borderColor = '';
       
-      if (country === 'select a country') {
-        selectInput.style.borderColor = '#ff4444';
-        selectInput.focus();
+      if (!username) {
+        usernameInput.style.borderColor = '#ff4444';
+        usernameInput.focus();
         playSound('error');
-        showToast('Please select a country');
+        showToast('Please enter your username');
         return;
       }
       
-      if (!phone) {
-        phoneInput.style.borderColor = '#ff4444';
-        phoneInput.focus();
+      if (!password) {
+        passwordInput.style.borderColor = '#ff4444';
+        passwordInput.focus();
         playSound('error');
-        showToast('Please enter your phone number');
-        return;
-      }
-      
-      if (phone.length < 5) {
-        phoneInput.style.borderColor = '#ff4444';
-        phoneInput.focus();
-        playSound('error');
-        showToast('Please enter a valid phone number');
+        showToast('Please enter your password');
         return;
       }
       
       // Show loading state
-      playSound('success');
       loginBtn.disabled = true;
-      loginBtn.textContent = 'Connecting...';
+      loginBtn.textContent = 'Logging in...';
       loginBtn.style.opacity = '0.6';
       loginBtn.style.cursor = 'not-allowed';
       
-      // Simulate login
-      setTimeout(() => {
-        window.location.href = 'chat.html';
-      }, 800);
+      try {
+        const response = await fetch(`${API_URL}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          playSound('success');
+          showToast('Login successful!', 'success');
+          
+          // Store session
+          localStorage.setItem('sessionId', data.sessionId);
+          localStorage.setItem('userId', data.user.id);
+          localStorage.setItem('username', data.user.username);
+          localStorage.setItem('userPhoto', data.user.photo);
+          
+          setTimeout(() => {
+            window.location.href = 'chat_box.html';
+          }, 800);
+        } else {
+          playSound('error');
+          showToast(data.error || 'Login failed');
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Login';
+          loginBtn.style.opacity = '1';
+          loginBtn.style.cursor = 'pointer';
+        }
+      } catch (err) {
+        playSound('error');
+        showToast('Server error. Please make sure the server is running.');
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+        loginBtn.style.opacity = '1';
+        loginBtn.style.cursor = 'pointer';
+      }
     });
     
     // Toast notification function
-    function showToast(message) {
+    function showToast(message, type = 'error') {
       const toast = document.createElement('div');
       toast.textContent = message;
+      const bgColor = type === 'success' 
+        ? 'linear-gradient(135deg, #4caf50, #45a049)' 
+        : 'linear-gradient(135deg, #ff4444, #cc0000)';
+      
       toast.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
-        background: linear-gradient(135deg, #ff4444, #cc0000);
+        background: ${bgColor};
         color: white;
         padding: 12px 20px;
         border-radius: 8px;
@@ -194,8 +218,12 @@
     document.head.appendChild(style);
     
     // Enable Enter key
-    phoneInput.addEventListener('keydown', (e) => {
+    passwordInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') loginBtn.click();
+    });
+    
+    usernameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') passwordInput.focus();
     });
   </script>
 </body>
