@@ -309,7 +309,13 @@
   </div>
 
   <script>
-    const API_URL = 'http://localhost:3000/api';
+    // Dynamic API URL - works for both local and Railway deployment
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3000/api'
+      : `${window.location.protocol}//${window.location.host}/api`;
+    
+    console.log('API URL:', API_URL);
+    
     let currentUserId = localStorage.getItem('userId');
     let currentUsername = localStorage.getItem('username');
     let sessionId = localStorage.getItem('sessionId');
